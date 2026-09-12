@@ -222,6 +222,39 @@ export default function Home(){
         </div>
       </section>
 
+      {/* UNIVERSAL SCAN - better reason */}
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-6">
+        <div className="rounded-[24px] border bg-gradient-to-br from-amber-50 via-white to-white p-6 sm:p-7">
+          <div className="flex flex-wrap items-start gap-4">
+            <div className="h-10 w-10 rounded-xl bg-slate-900 text-white grid place-items-center font-bold">∞</div>
+            <div className="flex-1 min-w-[280px]">
+              <h2 className="font-display font-bold text-xl">Scan <span className="text-brand-600">any</span> of 50k+ released extensions — not just the 10 examples</h2>
+              <p className="mt-2 text-sm text-ink-600 leading-relaxed">The 10 examples are curated reconstructions. The scanner itself works on <b>any publisher.extension</b> ever published. It fetches the real .vsix from Open VSX / Marketplace and scans locally in your browser — no backend, no key. <b>Why this matters:</b> teams install ~15–30 extensions; one typosquat or GlassWorm-style malicious update compromises the whole org. vsixgate lets you vet before <code className="bg-white px-1 rounded border">code --install-extension</code>, audit existing installs, and gate your own releases — all with the same 8-stage pipeline. That’s the supply-chain gap the demo proves at scale.</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <span className="px-3 py-1 rounded-full bg-white border font-semibold">50k+ searchable via Open VSX</span>
+                <span className="px-3 py-1 rounded-full bg-white border font-semibold">Any publisher.extension@version</span>
+                <span className="px-3 py-1 rounded-full bg-amber-100 border border-amber-200 text-amber-800 font-semibold">No upload • No tracking • 30MB zip-bomb guard</span>
+              </div>
+            </div>
+            <Link to="/scan" className="rounded-full bg-slate-900 text-white px-6 py-3 font-bold hover:bg-black whitespace-nowrap">Search & scan any →</Link>
+          </div>
+        </div>
+      </section>
+
+      {/* SECURITY */}
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-6">
+        <div className="rounded-2xl bg-slate-900 text-slate-200 p-5 flex flex-wrap items-center gap-3 text-xs">
+          <span className="font-bold text-white">🔒 Hardened by default</span>
+          <span className="h-6 w-px bg-white/10" />
+          <span className="px-2.5 py-1 rounded-full bg-white/10 border border-white/10">CSP + HSTS + X-Frame DENY</span>
+          <span className="px-2.5 py-1 rounded-full bg-white/10 border border-white/10">Zip-slip & zip-bomb guard</span>
+          <span className="px-2.5 py-1 rounded-full bg-white/10 border border-white/10">SSRF allowlist + timeout</span>
+          <span className="px-2.5 py-1 rounded-full bg-white/10 border border-white/10">XSS escape + rate limit</span>
+          <span className="px-2.5 py-1 rounded-full bg-white/10 border border-white/10">No cookies</span>
+          <a href="https://github.com/vsixgate/vsixgate" target="_blank" className="ml-auto text-amber-300 hover:underline">security.txt →</a>
+        </div>
+      </section>
+
       {/* STATS */}
       <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-12">
         <div className="rounded-[24px] bg-slate-900 text-white p-6 sm:p-8 overflow-hidden relative">

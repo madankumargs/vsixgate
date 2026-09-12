@@ -1,14 +1,8 @@
 import { useParams, Link } from 'react-router-dom'
 import { getExample } from '../data/examples'
 import ScoreRing from '../components/ScoreRing'
-
-function sevColor(s:string){
-  if(s==='critical') return 'bg-red-600 text-white'
-  if(s==='high') return 'bg-orange-500 text-white'
-  if(s==='medium') return 'bg-amber-400 text-amber-900'
-  if(s==='low') return 'bg-sky-100 text-sky-800 border'
-  return 'bg-slate-100 text-slate-700 border'
-}
+import ReportView from '../components/ReportView'
+import type { ScanResult } from '../lib/scanner'
 
 export default function ExampleDetail(){
   const { id } = useParams()
@@ -18,11 +12,17 @@ export default function ExampleDetail(){
   const counts = { critical:0, high:0, medium:0, low:0, info:0 } as any
   for(const f of ex.findings) counts[f.severity]++
 
-  const sarif = {
-    $schema: 'https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0.json',
-    version: '2.1.0',
-    runs: [{ tool:{ driver:{ name:'vsixgate', version:'0.1.0' } }, results: ex.findings.map(f=>({ ruleId:f.rule, level: f.severity==='critical'||f.severity==='high'?'error': f.severity==='medium'?'warning':'note', message:{ text:f.message }, locations: f.location? [{ physicalLocation:{ artifactLocation:{ uri:f.location.file }, region: f.location.line? { startLine:f.location.line }: undefined }}]: undefined })) }]
-  }
+  // Map example to ScanResult for unified readable ReportView (valuable, concise)
+  const asResult: ScanResult = {
+    publisher: ex.publisher,
+    name: ex.name,
+    version: ex.version,
+    findings: ex.findings,
+    status: ex.status,
+    score: ex.score,
+    hasLockfile: !ex.findings.some(f=> f.rule==='manifest.missing_lockfile'),
+    manifest: { publisher: ex.publisher, name: ex.name, version: ex.version },
+  } as ScanResult
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
@@ -54,45 +54,18 @@ export default function ExampleDetail(){
         </div>
       </div>
 
-      <div className="mt-6 grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-3">
-          <h2 className="font-display font-bold text-lg">Findings — {ex.findings.length}</h2>
-          {ex.findings.map((f,i)=>(
-            <div key={i} className="rounded-2xl border bg-white p-4 shadow-soft">
-              <div className="flex items-center gap-2">
-                <span className={`text-[11px] px-2 py-1 rounded-full font-bold ${sevColor(f.severity)}`}>{f.severity.toUpperCase()}</span>
-                <span className="font-mono text-sm font-semibold">{f.rule}</span>
-                {f.newInThisVersion && <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-300 text-amber-900 font-bold">NEW in this version</span>}
-                <span className="ml-auto text-xs text-ink-400">{f.location?.file}{f.location?.line? `:${f.location.line}`:''}</span>
-              </div>
-              <div className="mt-2 text-sm">{f.message}</div>
-              {(f.legitimateUse || f.redFlag) && (
-                <div className="mt-3 grid sm:grid-cols-2 gap-3 text-xs leading-relaxed">
-                  {f.legitimateUse && <div className="rounded-xl bg-slate-50 border p-3"><div className="font-semibold text-ink-600">Legitimate use</div><div className="text-ink-600">{f.legitimateUse}</div></div>}
-                  {f.redFlag && <div className="rounded-xl bg-red-50 border border-red-200 p-3"><div className="font-semibold text-red-700">Red flag</div><div className="text-red-700">{f.redFlag}</div></div>}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="space-y-4">
+      <div className="mt-6">
+        <ReportView result={asResult} />
+        <div className="mt-4 grid sm:grid-cols-2 gap-4">
           <div className="rounded-2xl border bg-white p-4 shadow-soft">
             <div className="font-semibold">How vsixgate caught this</div>
-            <ul className="mt-3 space-y-2 text-sm text-ink-600 list-disc pl-5">
+            <ul className="mt-2 space-y-1 text-sm text-ink-600 list-disc pl-5">
               <li>Diff engine marks <code className="bg-amber-100 px-1 rounded">newInThisVersion</code> — novelty is the strongest signal.</li>
               <li>Scoring: <code className="bg-slate-100 px-1 rounded">critical → BLOCK</code>, <code className="bg-slate-100 px-1 rounded">high+new → BLOCK</code>.</li>
               <li>SARIF maps to <code className="bg-slate-100 px-1 rounded">error/warning/note</code> for PR annotations.</li>
             </ul>
-            <Link to="/scan" className="mt-4 inline-flex rounded-full bg-slate-900 text-white px-4 py-2 text-sm font-semibold">Try with your .vsix</Link>
+            <Link to="/scan" className="mt-3 inline-flex rounded-full bg-slate-900 text-white px-4 py-2 text-sm font-semibold">Try with your .vsix</Link>
           </div>
-
-          <div className="rounded-2xl bg-slate-900 text-slate-100 p-4">
-            <div className="text-xs tracking-widest opacity-60">SARIF 2.1.0 PREVIEW</div>
-            <pre className="mt-2 max-h-[320px] overflow-auto text-[11px] leading-relaxed whitespace-pre-wrap break-all">{JSON.stringify(sarif, null, 2)}</pre>
-            <button onClick={()=> navigator.clipboard.writeText(JSON.stringify(sarif, null, 2))} className="mt-3 w-full rounded-full bg-white text-slate-900 py-2 text-sm font-bold">Copy SARIF</button>
-          </div>
-
           <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4">
             <div className="font-semibold text-amber-900">Reproduce locally</div>
             <div className="mt-2 font-mono text-xs bg-white border rounded-xl p-3">

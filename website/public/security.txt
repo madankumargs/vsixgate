@@ -1,0 +1,5 @@
+Contact: mailto:security@vsixgate.local
+Expires: 2027-09-12T00:00:00.000Z
+Acknowledgments: https://github.com/vsixgate/vsixgate/security
+Preferred-Languages: en
+Canonical: https://vsixgate.dev/.well-known/security.txt

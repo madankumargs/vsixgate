@@ -3,6 +3,7 @@ import { retrieve, isOutOfScope, generateAnswer } from '../lib/rag'
 import { scanVsixBuffer } from '../lib/scanner'
 import { fetchVsixBufferById } from '../lib/marketplace'
 import { useNavigate } from 'react-router-dom'
+import { sanitizeChatInput, isChatRateLimited, checkRateLimit, timeUntilNextScan } from '../lib/security'
 
 interface Msg { role: 'user' | 'agent'; text: string; sources?: string[]; thinking?: string }
 
@@ -34,16 +35,21 @@ export default function AgentChat(){
 
   useEffect(()=>{ listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior:'smooth'}) },[msgs, busy])
 
+  const lastChatRef = useRef(0)
   const send = async ()=>{
-    const q = input.trim()
+    const raw = sanitizeChatInput(input)
+    const q = raw.trim()
     if(!q || busy) return
+    if (isChatRateLimited(lastChatRef.current)) { setMsgs(m=> [...m, { role:'agent', text:'Slow down — 1 message per second please.'}]); return }
+    lastChatRef.current = Date.now()
     setMsgs(m=> [...m, { role:'user', text: q }])
     setInput('')
     setBusy(true)
 
-    // scan intent
+    // scan intent — rate-limited, sanitized
     const target = extractScanTarget(q)
     if(target){
+      if (!checkRateLimit()) { setMsgs(m=> [...m, { role:'agent', text: `Rate limited — try again in ${timeUntilNextScan()}s. Prevents fetch abuse.`}]); setBusy(false); return }
       const thinking = `Intent: scan → ${target}. Will fetch via marketplace helper (open-vsx preferred), then run scanVsixBuffer (JSZip heuristics) entirely in browser.`
       setMsgs(m=> [...m, { role:'agent', text:`Got it — scanning \`${target}\` for you…`, thinking }])
       try{

@@ -29,8 +29,23 @@ function levenshtein(a:string,b:string){
 
 const TOP_PACKAGES = ['lodash','axios','express','react','chalk','commander','typescript','eslint','prettier','jest','vitest','webpack','vite','semver','moment','debug','yargs','minimist','qs','uuid']
 
+import { SCAN_LIMITS } from './security'
+
 export async function scanVsixBuffer(buffer: ArrayBuffer): Promise<ScanResult> {
+  if (buffer.byteLength > SCAN_LIMITS.maxVsixBytes) throw new Error(`File too large (${(buffer.byteLength/1024/1024).toFixed(1)}MB). Max ${SCAN_LIMITS.maxVsixBytes/1024/1024}MB to prevent zip-bomb.`)
+  if (buffer.byteLength < 50) throw new Error('File too small — not a valid .vsix')
   const zip = await JSZip.loadAsync(buffer)
+  // zip bomb / zip-slip guards
+  const entries = Object.keys(zip.files)
+  if (entries.length > SCAN_LIMITS.maxEntries) throw new Error(`Too many files (${entries.length}). Max ${SCAN_LIMITS.maxEntries} to prevent zip bomb.`)
+  for (const p of entries) {
+    if (p.includes('..') || p.startsWith('/') || p.includes('\\')) throw new Error(`Blocked suspicious path: ${p} (zip-slip protection)`)
+  }
+  let decompressedTotal = 0
+  for (const f of Object.values(zip.files)) {
+    // JSZip doesn't expose uncompressed size beforehand; approximate via async check later
+    if ((f as any)._data && (f as any)._data.uncompressedSize > SCAN_LIMITS.maxDecompressedBytes) throw new Error('Archive too large when decompressed (zip bomb protection)')
+  }
   const findings: Finding[] = []
 
   // locate manifest
@@ -78,17 +93,23 @@ export async function scanVsixBuffer(buffer: ArrayBuffer): Promise<ScanResult> {
   const hasLockfile = !!zip.file('extension/package-lock.json') || !!zip.file('package-lock.json') || !!zip.file('extension/yarn.lock') || !!zip.file('yarn.lock')
   if (!hasLockfile) findings.push({ rule:'manifest.missing_lockfile', severity:'low', message:'No package-lock.json or yarn.lock included in the bundle', redFlag:'Blocks reliable transitive dependency analysis', location:{ file:manifestPath } })
 
-  // collect js/ts files
+  // collect js/ts files with decompressed size tracking
   const jsFiles: {path:string, content:string}[] = []
   const allFiles: {path:string, buf: Uint8Array}[] = []
+  let decompressedBytes = 0
   for (const [p, entry] of Object.entries(zip.files)) {
     if (entry.dir) continue
     if (p.endsWith('.js') || p.endsWith('.ts')) {
-      try { const txt = await entry.async('string'); jsFiles.push({ path:p, content:txt }) } catch {}
+      try {
+        const txt = await entry.async('string')
+        decompressedBytes += txt.length
+        if (decompressedBytes > SCAN_LIMITS.maxDecompressedBytes) throw new Error('Decompressed content exceeds limit (zip bomb protection)')
+        if (txt.length > SCAN_LIMITS.maxFileBytes) continue // skip huge files
+        jsFiles.push({ path:p, content:txt })
+      } catch {}
     }
-    // for signature scan keep buffer for png/jpg
     if (p.endsWith('.png') || p.endsWith('.jpg') || p.endsWith('.jpeg')) {
-      try { const b = await entry.async('uint8array'); allFiles.push({ path:p, buf:b }) } catch {}
+      try { const b = await entry.async('uint8array'); decompressedBytes += b.length; if (decompressedBytes > SCAN_LIMITS.maxDecompressedBytes) throw new Error('Decompressed content exceeds limit'); allFiles.push({ path:p, buf:b }) } catch {}
     }
     if (p.endsWith('.js') || p.endsWith('.ts')) {
       try { const b = await entry.async('uint8array'); allFiles.push({ path:p, buf:b }) } catch {}

@@ -1,16 +1,10 @@
 import { useCallback, useState } from 'react'
 import { scanVsixBuffer, type ScanResult } from '../lib/scanner'
 import { fetchVsixBufferById, POPULAR_EXTENSIONS, type Registry } from '../lib/marketplace'
-import ScoreRing from '../components/ScoreRing'
 import { Link } from 'react-router-dom'
-
-function sevBadge(s:string){
-  if(s==='critical') return 'bg-red-600 text-white'
-  if(s==='high') return 'bg-orange-500 text-white'
-  if(s==='medium') return 'bg-amber-400 text-amber-900'
-  if(s==='low') return 'bg-sky-100 text-sky-800 border'
-  return 'bg-slate-100 text-slate-700 border'
-}
+import ReportView from '../components/ReportView'
+import ExtensionSearch from '../components/ExtensionSearch'
+import { SCAN_LIMITS, checkRateLimit, timeUntilNextScan, isValidExtensionId } from '../lib/security'
 
 export default function Scanner(){
   const [result, setResult] = useState<ScanResult | null>(null)
@@ -24,6 +18,8 @@ export default function Scanner(){
   const [urlMode, setUrlMode] = useState(false)
 
   const handleFile = useCallback(async (file: File)=>{
+    if (file.size > SCAN_LIMITS.maxVsixBytes) { setError(`File too large (${(file.size/1024/1024).toFixed(1)}MB). Max 30MB.`); return }
+    if (!checkRateLimit()) { setError(`Rate limited — try again in ${timeUntilNextScan()}s`); return }
     setError(null); setResult(null); setLoading(true); setFileName(file.name); setProgress('Unpacking & scanning…')
     try {
       const buf = await file.arrayBuffer()
@@ -45,8 +41,10 @@ export default function Scanner(){
   },[handleFile])
 
   const scanById = useCallback(async (id?: string)=>{
-    const target = (id || extId).trim()
+    const target = (id || extId).trim().slice(0,120)
     if(!target) { setError('Enter an extension ID like esbenp.prettier-vscode or a marketplace URL'); return }
+    if (!/^https?:\/\//i.test(target) && !isValidExtensionId(target)) { setError('Invalid ID. Use publisher.extension (e.g. esbenp.prettier-vscode)'); return }
+    if (!checkRateLimit()) { setError(`Rate limited — try again in ${timeUntilNextScan()}s`); return }
     setError(null); setResult(null); setLoading(true); setFileName(target); setProgress('Resolving extension…')
     try{
       const fetched = await fetchVsixBufferById(target, { registry, onProgress: (p)=> setProgress(`${p.stage}…`) })
@@ -82,26 +80,50 @@ export default function Scanner(){
     } catch(e:any){ setError(e.message)} finally{ setLoading(false); setProgress('')}
   }
 
-  const jsonReport = result ? JSON.stringify({ manifest: result.manifest, findings: result.findings, scoring: { counts: result.findings.reduce((a:any,f)=>{a[f.severity]=(a[f.severity]||0)+1; return a},{critical:0,high:0,medium:0,low:0,info:0}), status: result.status }, score: result.score, source: (result as any).downloadUrl }, null, 2) : ''
-  const sarif = result ? JSON.stringify({
-    $schema: 'https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0.json',
-    version:'2.1.0',
-    runs:[{ tool:{ driver:{ name:'vsixgate', version:'0.1.0' }}, results: result.findings.map(f=>({ ruleId:f.rule, level: f.severity==='critical'||f.severity==='high'?'error': f.severity==='medium'?'warning':'note', message:{ text:f.message }, locations: f.location? [{ physicalLocation:{ artifactLocation:{uri:f.location.file}}}]: undefined })) }]
-  }, null, 2) : ''
-
-  const counts = result ? result.findings.reduce((a:any,f)=>{ a[f.severity]++ ; return a},{critical:0,high:0,medium:0,low:0,info:0} as any) : null
+  // report handled by ReportView — keeps UI readable and valuable (summary + top 3 + collapsed details)
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display font-bold text-3xl">Live Scanner</h1>
-          <p className="mt-2 text-ink-600 max-w-2xl">Scan by <span className="font-semibold text-ink-900">extension name</span> (no .vsix needed) or drag-drop a file. Runs <span className="font-semibold text-ink-900">entirely in your browser</span> — privacy-first. For full Semgrep/YARA + OSV + SQLite diff, use the CLI.</p>
+          <p className="mt-2 text-ink-600 max-w-2xl">Scan <span className="font-semibold text-ink-900">any of 50k+ published extensions</span> by name — or drag-drop a .vsix. Runs <span className="font-semibold text-ink-900">entirely in your browser</span> (no upload). <span className="bg-amber-100 px-1 rounded">Why it works for all:</span> we fetch the real .vsix from Open VSX / Marketplace and run the same 8-stage pipeline locally.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={loadDemo} className="rounded-full bg-white border px-4 py-2 text-sm font-semibold">Load demo.vsix</button>
           <Link to="/examples" className="rounded-full bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900">See 10 examples</Link>
         </div>
+      </div>
+      <div className="mt-6 rounded-2xl bg-white border p-4 shadow-soft">
+        <div className="text-xs tracking-widest font-bold text-ink-400">SEARCH ALL PUBLISHED EXTENSIONS</div>
+        <div className="mt-2"><ExtensionSearch onSelect={(id)=> scanById(id)} /></div>
+        <div className="mt-2 text-xs text-ink-500">Type “python”, “docker”, “theme” — searches Open VSX index live (50k+ extensions). Or paste any <code className="bg-slate-100 px-1 rounded">publisher.extension</code> below (even those not in the 12 quick chips).</div>
+      </div>
+
+      <div className="mt-4 rounded-2xl bg-gradient-to-br from-amber-50 to-white border border-amber-200 p-4">
+        <div className="flex gap-3">
+          <div className="h-9 w-9 rounded-xl bg-amber-400 text-white grid place-items-center font-bold">∞</div>
+          <div>
+            <div className="font-bold text-amber-900">Better reason: why scanning <em>any</em> extension matters — not just the 10 examples</div>
+            <p className="mt-1 text-sm text-ink-600 leading-relaxed">Every extension is a full Node.js app running in your editor with access to files, terminals, and network. The marketplace hosts <b>~45k VS Code + 5k Open VSX</b> extensions — attackers hide typosquats (<code className="bg-white px-1 rounded border">lodashh</code> vs <code className="bg-white px-1 rounded border">lodash</code>), disguised binaries, and malicious updates among them. Previous tools only checked their own dashboard. <b>vsixgate fetches the real published .vsix by ID and scans it locally</b> (no backend, no key): so you can vet <b>any dependency before you `code --install-extension`</b>, gate your own release, or audit a customer’s stack. That’s the pre-publish shift-left.</p>
+            <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+              <span className="px-2 py-1 rounded-full bg-white border">Supply-chain vetting</span>
+              <span className="px-2 py-1 rounded-full bg-white border">Pre-install check</span>
+              <span className="px-2 py-1 rounded-full bg-white border">Update diff</span>
+              <span className="px-2 py-1 rounded-full bg-white border">No upload, no tracking</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-xl bg-slate-900 text-slate-300 px-4 py-3 flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-bold text-white">🔒 Hardened</span>
+        <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">CSP + X-Frame DENY + HSTS</span>
+        <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">XSS escape + input validation</span>
+        <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">Zip-bomb + zip-slip guard</span>
+        <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">SSRF allowlist + timeout</span>
+        <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">Rate limit 1/2s + 30MB cap</span>
+        <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/10">No cookies • No tracking</span>
       </div>
 
       {/* SCAN BY NAME */}
@@ -185,84 +207,15 @@ export default function Scanner(){
       </div>
 
       {result && (
-        <div className="mt-8 grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4">
-            <div className="rounded-2xl border bg-white p-5 shadow-soft flex gap-4 items-center">
-              <ScoreRing score={result.score} size={72} />
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="font-semibold truncate">{result.publisher}.{result.name}@{result.version}</div>
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${result.status==='BLOCK'?'bg-red-600 text-white': result.status==='WARN'?'bg-amber-400 text-amber-900':'bg-emerald-500 text-white'}`}>{result.status}</span>
-                  {(result as any).registry && <span className="text-xs px-2 py-1 rounded-full bg-slate-100 border font-mono">{(result as any).registry}</span>}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {Object.entries(counts).map(([k,v])=>(
-                    <span key={k} className="text-xs px-2 py-1 rounded-full bg-slate-900 text-white font-mono">{k.toUpperCase()}: {v as number}</span>
-                  ))}
-                  <span className="text-xs px-2 py-1 rounded-full bg-white border">{result.findings.length} findings</span>
-                  <span className={`text-xs px-2 py-1 rounded-full border ${result.hasLockfile?'bg-emerald-50 border-emerald-200 text-emerald-700':'bg-amber-50 border-amber-200 text-amber-800'}`}>{result.hasLockfile? 'lockfile present':'no lockfile'}</span>
-                </div>
-                {(result as any).downloadUrl && <div className="mt-2 text-xs font-mono text-ink-400 truncate">source: {(result as any).downloadUrl}</div>}
-              </div>
-              <div className="hidden sm:block text-right shrink-0">
-                <div className="text-xs tracking-widest text-ink-400 font-semibold">EXIT CODE</div>
-                <div className={`text-2xl font-display font-bold ${result.status==='BLOCK'?'text-red-600': result.status==='WARN'?'text-amber-600':'text-emerald-600'}`}>{result.status==='BLOCK'?2: result.status==='WARN'?1:0}</div>
-              </div>
+        <div className="mt-8">
+          <ReportView result={result} />
+          <div className="mt-4 rounded-2xl bg-amber-50 border border-amber-200 p-4">
+            <div className="font-semibold text-amber-900">Next — gate your CI</div>
+            <div className="mt-2 font-mono text-xs bg-white border rounded-xl p-3 leading-relaxed">
+              vsixgate scan {(result as any).registry ? `${result.publisher}.${result.name} --registry ${(result as any).registry==='open-vsx'?'openvsx':'vscode'}` : './ext.vsix'} --format sarif --out results.sarif<br/>
+              <span className="opacity-60"># exit 0 PASS • 1 WARN • 2 BLOCK — wire to GitHub Actions</span>
             </div>
-
-            <h2 className="font-display font-bold text-lg">Findings — {result.findings.length || 'none 🎉'}</h2>
-            {result.findings.length===0 ? (
-              <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-6 text-center">
-                <div className="text-2xl">✅</div>
-                <div className="font-semibold text-emerald-900 mt-2">No findings — clean scan</div>
-                <div className="text-sm text-emerald-700">This bundle looks safe under current heuristics. For production, run the CLI with --strict and SARIF upload.</div>
-              </div>
-            ) : result.findings.map((f,i)=>(
-              <div key={i} className="rounded-2xl border bg-white p-4 shadow-soft">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[11px] px-2 py-1 rounded-full font-bold ${sevBadge(f.severity)}`}>{f.severity.toUpperCase()}</span>
-                  <span className="font-mono text-sm font-semibold">{f.rule}</span>
-                  <span className="ml-auto text-xs text-ink-400 truncate">{f.location?.file}</span>
-                </div>
-                <div className="mt-2 text-sm">{f.message}</div>
-                {(f.legitimateUse || f.redFlag) && (
-                  <div className="mt-3 grid sm:grid-cols-2 gap-2 text-xs">
-                    {f.legitimateUse && <div className="rounded-xl bg-slate-50 border p-2.5"><b>Legitimate</b>: {f.legitimateUse}</div>}
-                    {f.redFlag && <div className="rounded-xl bg-red-50 border border-red-200 p-2.5 text-red-700"><b>Red flag</b>: {f.redFlag}</div>}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="space-y-4">
-            <div className="rounded-2xl border bg-white p-4 shadow-soft">
-              <div className="font-semibold">Export</div>
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <button onClick={()=> navigator.clipboard.writeText(jsonReport)} className="rounded-xl bg-slate-900 text-white py-2 text-xs font-bold">Copy JSON</button>
-                <button onClick={()=> navigator.clipboard.writeText(sarif)} className="rounded-xl bg-white border py-2 text-xs font-bold">Copy SARIF</button>
-                <button onClick={()=> {
-                  const blob = new Blob([sarif], {type:'application/json'})
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a'); a.href=url; a.download='results.sarif'; a.click(); URL.revokeObjectURL(url)
-                }} className="rounded-xl bg-amber-100 border border-amber-200 py-2 text-xs font-bold text-amber-900">Download SARIF</button>
-              </div>
-              <div className="mt-3 text-xs text-ink-400">SARIF 2.1.0 — upload via <code className="bg-slate-100 px-1 rounded">github/codeql-action/upload-sarif</code> for PR annotations.</div>
-            </div>
-
-            <div className="rounded-2xl bg-slate-900 text-slate-100 p-4">
-              <div className="text-xs tracking-widest opacity-60">JSON REPORT</div>
-              <pre className="mt-2 max-h-[260px] overflow-auto text-[11px] leading-relaxed whitespace-pre-wrap break-all">{jsonReport.slice(0, 6000)}{jsonReport.length>6000?'…':''}</pre>
-            </div>
-
-            <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4">
-              <div className="font-semibold text-amber-900">Next — gate your CI</div>
-              <div className="mt-2 font-mono text-xs bg-white border rounded-xl p-3 leading-relaxed">
-                vsixgate scan {(result as any).registry ? `${result.publisher}.${result.name} --registry ${(result as any).registry==='open-vsx'?'openvsx':'vscode'}` : './ext.vsix'} --format sarif --out results.sarif<br/>
-                <span className="opacity-60"># exit 0 PASS • 1 WARN • 2 BLOCK</span>
-              </div>
-              <Link to="/examples/glassworm-update" className="mt-3 inline-flex text-sm font-semibold text-amber-900 hover:underline">See GlassWorm update example →</Link>
-            </div>
+            <Link to="/examples/glassworm-update" className="mt-3 inline-flex text-sm font-semibold text-amber-900 hover:underline">See GlassWorm update example →</Link>
           </div>
         </div>
       )}
