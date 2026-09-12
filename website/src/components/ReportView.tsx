@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import ScoreRing from './ScoreRing'
+import ReportDashboard from './ReportDashboard'
 import type { ScanResult } from '../lib/scanner'
 import type { Finding } from '../data/examples'
 
@@ -27,7 +28,7 @@ export default function ReportView({ result, compact=false }: { result: ScanResu
   const counts = result.findings.reduce((a:any,f)=>{ a[f.severity]++; return a},{critical:0,high:0,medium:0,low:0,info:0} as any)
   const topRisks = [...result.findings].sort((a,b)=> ({critical:4,high:3,medium:2,low:1,info:0}[b.severity] - ({critical:4,high:3,medium:2,low:1,info:0}[a.severity]))).slice(0,3)
   const [showAll, setShowAll] = useState(compact ? false : true)
-  const [tab, setTab] = useState<'findings'|'json'|'sarif'>('findings')
+  const [tab, setTab] = useState<'dashboard'|'findings'|'raw'>('dashboard')
 
   const statusMeta = result.status==='BLOCK' ? { color:'text-red-600', bg:'bg-red-50 border-red-200', title:'BLOCK — Do not publish', desc:'Critical or new high-risk signals found. Fix before vsce publish or the update could ship an attack.' }
     : result.status==='WARN' ? { color:'text-amber-700', bg:'bg-amber-50 border-amber-200', title:'WARN — Review before publish', desc:'Medium/high findings that are not brand-new. Review, add mitigations, or set strict=false if accepted.' }
@@ -71,14 +72,15 @@ export default function ReportView({ result, compact=false }: { result: ScanResu
         )}
       </div>
 
-      {/* Tabs - readable */}
+      {/* Tabs - minimal, valuable */}
       <div className="rounded-2xl border bg-white overflow-hidden">
         <div className="flex gap-1 p-1.5 bg-slate-50 border-b">
-          {(['findings','json','sarif'] as const).map(t=>(
-            <button key={t} onClick={()=> setTab(t)} className={`flex-1 py-2 rounded-xl text-sm font-semibold ${tab===t?'bg-white border shadow-soft':'text-ink-500 hover:bg-white'}`}>{t==='findings'?`Findings (${result.findings.length})`: t.toUpperCase()}</button>
+          {(['dashboard','findings','raw'] as const).map(t=>(
+            <button key={t} onClick={()=> setTab(t)} className={`flex-1 py-2 rounded-xl text-sm font-semibold ${tab===t?'bg-white border shadow-sm':'text-ink-500 hover:bg-white'}`}>{t==='dashboard'?'Dashboard': t==='findings'?`Findings (${result.findings.length})`:'Raw'}</button>
           ))}
         </div>
-        <div className="p-4 max-h-[520px] overflow-auto">
+        <div className="p-4 max-h-[640px] overflow-auto">
+          {tab==='dashboard' && <ReportDashboard result={result} />}
           {tab==='findings' && (
             result.findings.length===0 ? <div className="text-center py-8"><div className="text-2xl">✅</div><div className="font-semibold mt-2">Clean — no findings</div><div className="text-sm text-ink-500">Keep the gate: scan every version, upload SARIF to PRs.</div></div>
             : <>
@@ -104,13 +106,15 @@ export default function ReportView({ result, compact=false }: { result: ScanResu
               {result.findings.length>3 && <button onClick={()=> setShowAll(v=>!v)} className="mt-3 w-full rounded-xl border bg-slate-50 py-2 text-sm font-semibold">{showAll? 'Show less':'Show all findings'}</button>}
             </>
           )}
-          {tab==='json' && <>
-            <div className="flex justify-between items-center mb-2"><span className="text-xs font-mono text-ink-400">JSON report — stable schema per docs/schema.md</span><button onClick={()=> navigator.clipboard.writeText(jsonReport)} className="text-xs font-bold px-3 py-1 rounded-full bg-slate-900 text-white">Copy</button></div>
-            <pre className="text-[11px] leading-relaxed whitespace-pre-wrap break-all bg-slate-900 text-slate-100 p-3 rounded-xl max-h-[360px] overflow-auto">{jsonReport.slice(0,8000)}</pre>
-          </>}
-          {tab==='sarif' && <>
-            <div className="flex justify-between items-center mb-2"><span className="text-xs font-mono text-ink-400">SARIF 2.1.0 — upload via github/codeql-action/upload-sarif</span><div className="flex gap-1"><button onClick={()=> navigator.clipboard.writeText(sarif)} className="text-xs font-bold px-3 py-1 rounded-full bg-slate-900 text-white">Copy</button><button onClick={()=>{ const b=new Blob([sarif],{type:'application/json'}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='results.sarif'; a.click(); URL.revokeObjectURL(u)}} className="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 border border-amber-200 text-amber-900">Download</button></div></div>
-            <pre className="text-[11px] leading-relaxed whitespace-pre-wrap break-all bg-slate-900 text-slate-100 p-3 rounded-xl max-h-[360px] overflow-auto">{sarif.slice(0,8000)}</pre>
+          {tab==='raw' && <>
+            <div className="flex flex-wrap gap-2 mb-3">
+              <button onClick={()=> navigator.clipboard.writeText(jsonReport)} className="text-xs font-bold px-3 py-1.5 rounded-full bg-slate-900 text-white">Copy JSON</button>
+              <button onClick={()=> navigator.clipboard.writeText(sarif)} className="text-xs font-bold px-3 py-1.5 rounded-full bg-white border">Copy SARIF</button>
+              <button onClick={()=>{ const b=new Blob([sarif],{type:'application/json'}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='results.sarif'; a.click(); URL.revokeObjectURL(u)}} className="text-xs font-bold px-3 py-1.5 rounded-full bg-amber-100 border border-amber-200 text-amber-900">Download SARIF</button>
+              <button onClick={()=>{ const b=new Blob([jsonReport],{type:'application/json'}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='report.json'; a.click(); URL.revokeObjectURL(u)}} className="text-xs font-bold px-3 py-1.5 rounded-full bg-white border">Download JSON</button>
+            </div>
+            <details className="mb-2"><summary className="cursor-pointer text-sm font-semibold">JSON — stable schema per docs/schema.md</summary><pre className="mt-2 text-[11px] leading-relaxed whitespace-pre-wrap break-all bg-slate-900 text-slate-100 p-3 rounded-xl max-h-[260px] overflow-auto">{jsonReport.slice(0,8000)}</pre></details>
+            <details><summary className="cursor-pointer text-sm font-semibold">SARIF 2.1.0 — upload via github/codeql-action/upload-sarif</summary><pre className="mt-2 text-[11px] leading-relaxed whitespace-pre-wrap break-all bg-slate-900 text-slate-100 p-3 rounded-xl max-h-[260px] overflow-auto">{sarif.slice(0,8000)}</pre></details>
           </>}
         </div>
       </div>
