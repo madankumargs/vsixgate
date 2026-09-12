@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import AuthModal from './AuthModal'
 
-const GITHUB_URL = 'https://github.com/vsixgate/vsixgate'
+const GITHUB_URL = 'https://github.com/madankumargs/vsixgate'
 
 function MorePopup({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null

@@ -106,7 +106,7 @@ th{background:#F8FAFC;font-size:11px;letter-spacing:0.08em;color:#64748B}
 <div class="card" style="margin:0 24px;animation-delay:320ms">
   <div style="font-size:11px;letter-spacing:0.12em;color:#64748B;font-weight:700">FINDINGS — DETAILED</div>
   <table style="margin-top:12px"><tr><th>Severity</th><th>Rule</th><th>Message</th><th>File</th></tr>${result.findings.map(f=>`<tr><td><span class="sev-${f.severity}">${f.severity.toUpperCase()}</span></td><td style="font-family:JetBrains Mono,monospace;font-size:12px">${f.rule}</td><td>${f.message}</td><td style="font-family:JetBrains Mono,monospace;font-size:11px;color:#64748B">${f.location?.file||''}</td></tr>`).join('') || `<tr><td colspan="4" style="text-align:center;padding:24px">✅ Clean — no findings</td></tr>`}</table>
-  <div style="margin-top:12px;font-size:12px;color:#64748B">Generated client-side — no data leaves your browser. Printable, shareable, auditable. • <a href="https://github.com/vsixgate/vsixgate">vsixgate v0.1.0</a></div>
+  <div style="margin-top:12px;font-size:12px;color:#64748B">Generated client-side — no data leaves your browser. Printable, shareable, auditable. • <a href="https://github.com/madankumargs/vsixgate">vsixgate v0.1.0</a></div>
 </div>
 
 <div style="text-align:center;padding:24px;font-size:12px;color:#64748B">© vsixgate — pre-publish scanner • <span style="font-family:JetBrains Mono,monospace">vsixgate scan ${result.publisher}.${result.name} --format sarif --out results.sarif</span></div>
