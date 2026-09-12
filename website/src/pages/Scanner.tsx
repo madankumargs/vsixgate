@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect } from 'react'
 import { scanVsixBuffer, type ScanResult } from '../lib/scanner'
-import { fetchVsixBufferById, POPULAR_EXTENSIONS, searchExtensions, type Registry } from '../lib/marketplace'
+import { fetchVsixBufferById, fetchVersions, POPULAR_EXTENSIONS, searchExtensions, type Registry } from '../lib/marketplace'
 import { Link } from 'react-router-dom'
 import ReportView from '../components/ReportView'
 import { SCAN_LIMITS, checkRateLimit, timeUntilNextScan, isValidExtensionId } from '../lib/security'
@@ -16,6 +16,9 @@ export default function Scanner(){
   const [registry, setRegistry] = useState<Registry>('auto')
   const [suggestions, setSuggestions] = useState<Awaited<ReturnType<typeof searchExtensions>>>([])
   const [showSug, setShowSug] = useState(false)
+  const [versions, setVersions] = useState<string[]>([])
+  const [selectedVersion, setSelectedVersion] = useState<string>('')
+  const [versionsLoading, setVersionsLoading] = useState(false)
 
   // autocomplete for 50k extensions — integrated with single bar
   useEffect(()=>{
@@ -26,6 +29,28 @@ export default function Scanner(){
     }, 300)
     return ()=> clearTimeout(t)
   },[extId])
+
+  // version/release discovery — when extId is publisher.name
+  const loadVersions = useCallback(async (id: string)=>{
+    const clean = id.split('@')[0].split(':')[0]
+    if(!clean.includes('.')) return
+    const [pub, ...rest] = clean.split('.'); const name = rest.join('.')
+    if(!pub || !name) return
+    setVersionsLoading(true)
+    const vers = await fetchVersions(pub, name, registry)
+    setVersions(vers)
+    if(vers.length) setSelectedVersion(vers[0])
+    setVersionsLoading(false)
+  },[registry])
+
+  useEffect(()=>{
+    if(extId.includes('.') && !extId.includes(' ') && !/^https?:\/\//.test(extId)){
+      const t = setTimeout(()=> loadVersions(extId), 500)
+      return ()=> clearTimeout(t)
+    } else {
+      setVersions([]); setSelectedVersion('')
+    }
+  },[extId, loadVersions])
 
   const handleFile = useCallback(async (file: File)=>{
     if (file.size > SCAN_LIMITS.maxVsixBytes) { setError(`File too large (${(file.size/1024/1024).toFixed(1)}MB). Max 30MB.`); return }
@@ -50,9 +75,14 @@ export default function Scanner(){
     if(f) handleFile(f)
   },[handleFile])
 
-  const scanById = useCallback(async (id?: string)=>{
-    const target = (id || extId).trim().slice(0,120)
+  const scanById = useCallback(async (id?: string, forcedVersion?: string)=>{
+    let target = (id || extId).trim().slice(0,120)
     if(!target) { setError('Enter an extension ID like esbenp.prettier-vscode'); return }
+    // if version selected, append @version
+    const ver = forcedVersion || selectedVersion
+    if(ver && !target.includes('@') && !target.includes(':') && !/^https?:\/\//.test(target)){
+      target = `${target}@${ver}`
+    }
     if (!/^https?:\/\//i.test(target) && !isValidExtensionId(target)) { setError('Invalid ID. Use publisher.extension'); return }
     if (!checkRateLimit()) { setError(`Rate limited — try again in ${timeUntilNextScan()}s`); return }
     setShowSug(false); setSuggestions([])
@@ -127,6 +157,18 @@ export default function Scanner(){
           </select>
           <button onClick={()=> scanById()} disabled={loading} className="rounded-xl bg-slate-900 text-white px-5 py-2.5 text-sm font-semibold disabled:opacity-50">Scan</button>
         </div>
+
+        {/* version/release picker — scan any published version */}
+        {versions.length>0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-ink-600">Version</span>
+            <select value={selectedVersion} onChange={e=> setSelectedVersion(e.target.value)} className="rounded-full border bg-white px-3 py-1.5 text-xs font-mono">
+              {versions.map(v=> <option key={v} value={v}>{v}</option>)}
+            </select>
+            <span className="text-ink-400">{versionsLoading? 'loading…': `${versions.length} releases`}</span>
+            <span className="text-ink-400">• try <button onClick={()=> scanById(extId.split('@')[0], versions[versions.length-1])} className="underline">oldest</button> vs <button onClick={()=> scanById(extId.split('@')[0], versions[0])} className="underline">latest</button> to see diff</span>
+          </div>
+        )}
 
         <div className="mt-3 flex flex-wrap gap-1.5">
           {POPULAR_EXTENSIONS.slice(0,6).map(p=>(

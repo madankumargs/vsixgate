@@ -29,6 +29,41 @@ export async function searchExtensions(query: string, limit = 8): Promise<Array<
   } catch { return [] }
 }
 
+export async function fetchVersions(publisher: string, name: string, registry: Registry = 'auto'): Promise<string[]> {
+  publisher = publisher.trim(); name = name.trim()
+  if (!publisher || !name) return []
+  // Open VSX — try to get all versions
+  if (registry === 'openvsx' || registry === 'auto') {
+    try {
+      const url = `https://open-vsx.org/api/${publisher}/${name}`
+      const res = await fetchWithTimeout(url, { headers: { Accept: 'application/json' }, timeoutMs: 8000 })
+      if (res.ok) {
+        const data = await res.json()
+        // open-vsx may return allVersions or versions
+        const vers = data.allVersions || data.versions
+        if (Array.isArray(vers) && vers.length) return vers.slice(0, 20).map((v:any)=> typeof v==='string'? v : v.version).filter(Boolean)
+        if (data.version) return [data.version]
+      }
+    } catch {}
+  }
+  // Marketplace — via extensionquery
+  try {
+    const qUrl = 'https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery'
+    const res = await fetchWithTimeout(qUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json;api-version=3.0-preview.1' },
+      body: JSON.stringify({ filters: [{ criteria: [{ filterType: 7, value: `${publisher}.${name}` }], pageNumber: 1, pageSize: 1 }], flags: 914 }),
+      timeoutMs: 8000,
+    } as any)
+    if (res.ok) {
+      const data = await res.json()
+      const vers = data?.results?.[0]?.extensions?.[0]?.versions
+      if (Array.isArray(vers)) return vers.slice(0, 20).map((v:any)=> v.version).filter(Boolean)
+    }
+  } catch {}
+  return []
+}
+
 export async function fetchVsixBufferById(
   rawId: string,
   opts?: { registry?: Registry; version?: string; onProgress?: (p: FetchProgress) => void }

@@ -6,21 +6,24 @@ import Examples from './pages/Examples'
 import ExampleDetail from './pages/ExampleDetail'
 import Scanner from './pages/Scanner'
 import AgentChat from './components/AgentChat'
+import { AuthProvider } from './lib/auth'
 
 export default function App(){
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
-      <main className="flex-1">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/examples" element={<Examples />} />
-          <Route path="/examples/:id" element={<ExampleDetail />} />
-          <Route path="/scan" element={<Scanner />} />
-        </Routes>
-      </main>
-      <Footer />
-      <AgentChat />
-    </div>
+    <AuthProvider>
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <main className="flex-1">
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/examples" element={<Examples />} />
+            <Route path="/examples/:id" element={<ExampleDetail />} />
+            <Route path="/scan" element={<Scanner />} />
+          </Routes>
+        </main>
+        <Footer />
+        <AgentChat />
+      </div>
+    </AuthProvider>
   )
 }
