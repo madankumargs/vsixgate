@@ -1,0 +1,57 @@
+{
+  "name": "vsixgate",
+  "version": "0.1.0",
+  "description": "Pre-publish security scanner for VS Code/Open VSX extensions",
+  "main": "dist/cli.js",
+  "type": "module",
+  "bin": {
+    "vsixgate": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/cli.ts",
+    "test": "vitest",
+    "lint": "eslint . --ext .ts",
+    "pack": "npm pack",
+    "prepare": "echo prepare"
+  },
+  "keywords": [
+    "vscode",
+    "vsix",
+    "security",
+    "scanner",
+    "sast"
+  ],
+  "license": "MIT",
+  "author": "",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "docs"
+  ],
+  "types": "dist/src/types.d.ts",
+  "dependencies": {
+    "adm-zip": "^0.5.9",
+    "axios": "^1.4.0",
+    "boxen": "^7.0.0",
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.2",
+    "commander": "^11.0.0",
+    "figlet": "^1.11.4",
+    "ora": "^6.1.2"
+  },
+  "optionalDependencies": {
+    "better-sqlite3": "^8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.5.0",
+    "vitest": "^1.3.0"
+  }
+}

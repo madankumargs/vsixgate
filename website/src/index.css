@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { -webkit-font-smoothing: antialiased; }
+html { scroll-behavior: smooth; }
+
+/* subtle grid background */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(15,23,42,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15,23,42,0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+.bg-glow {
+  background: radial-gradient(600px 400px at 70% 0%, rgba(255,107,53,0.14), transparent 60%),
+              radial-gradient(500px 500px at 10% 10%, rgba(251,191,36,0.10), transparent 60%);
+}
+.glass {
+  backdrop-filter: blur(10px);
+  background: rgba(255,255,255,0.78);
+}

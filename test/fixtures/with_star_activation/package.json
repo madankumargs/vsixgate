@@ -1,0 +1,7 @@
+{
+  "name": "star-ext",
+  "version": "0.1.0",
+  "publisher": "star-pub",
+  "activationEvents": ["*"],
+  "contributes": {}
+}

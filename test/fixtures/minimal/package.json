@@ -1,0 +1,12 @@
+{
+  "name": "minimal-ext",
+  "version": "0.0.1",
+  "publisher": "sample-pub",
+  "contributes": {
+    "configuration": {
+      "properties": {
+        "minimal-ext.path": { "type": "string" }
+      }
+    }
+  }
+}
