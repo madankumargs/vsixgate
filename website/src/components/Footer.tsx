@@ -47,7 +47,13 @@ export default function Footer(){
           </div>
         </div>
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-ink-400 border-t pt-6">
-          <div>© 2026 vsixgate. Built for publishers, not dashboards.</div>
+          <div className="flex items-center gap-2">
+            <span>© 2026 vsixgate. Built for publishers, not dashboards.</span>
+            <a href="https://github.com/vsixgate/vsixgate" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-full bg-white border px-3 py-1 font-semibold text-ink-700 hover:bg-slate-50">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38l-.01-1.34C4.2 14.3 3.66 13 3.66 13c-.36-.91-.88-1.15-.88-1.15-.72-.49.05-.48.05-.48.79.06 1.2.82 1.2.82.71 1.22 1.87.87 2.33.66.08-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.22 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48l-.01 2.2c0 .21.15.45.55.38A8 8 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+              github.com/vsixgate/vsixgate
+            </a>
+          </div>
           <div className="flex gap-4">
             <span>Privacy-first: scans run locally / in your browser demo</span>
             <span>•</span>
