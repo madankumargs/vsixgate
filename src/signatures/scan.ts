@@ -14,6 +14,7 @@ function walk(dir: string, files: string[] = []) {
 
 export async function scanSignatures(bundleRoot: string): Promise<Finding[]> {
   const findings: Finding[] = [];
+  const rel = (f: string) => path.relative(bundleRoot, f).split(path.sep).join('/');
   const files = walk(bundleRoot);
 
   for (const file of files) {
@@ -28,9 +29,9 @@ export async function scanSignatures(bundleRoot: string): Promise<Finding[]> {
           findings.push({
             rule: 'signatures.disguised_executable',
             severity: 'high',
-            message: `File ${path.relative(process.cwd(), file)} contains executable magic bytes despite image extension`,
+            message: `File ${rel(file)} contains executable magic bytes despite image extension`,
             redFlag: 'Possible disguised payload inside archived image file',
-            location: { file }
+            location: { file: rel(file) }
           });
         }
       }
@@ -49,10 +50,10 @@ export async function scanSignatures(bundleRoot: string): Promise<Finding[]> {
           findings.push({
             rule: 'signatures.telemetry_usage',
             severity,
-            message: `Telemetry-related API usage in ${path.relative(process.cwd(), file)}`,
+            message: `Telemetry-related API usage in ${rel(file)}`,
             legitimateUse: 'Extensions often collect telemetry for diagnostics',
             redFlag: mitigated ? 'Has opt-out/mitigation detected' : 'No opt-out/mitigation detected',
-            location: { file }
+            location: { file: rel(file) }
           });
         }
       } catch { }

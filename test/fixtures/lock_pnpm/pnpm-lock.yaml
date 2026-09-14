@@ -1,0 +1,8 @@
+lockfileVersion: '9.0'
+packages:
+  /lodashh@4.17.21:
+    resolution: {integrity: sha512-fake}
+  /@scope/vuln-pkg@1.0.5(peer@2.0.0):
+    resolution: {integrity: sha512-fake}
+snapshots:
+  /lodashh@4.17.21: {}

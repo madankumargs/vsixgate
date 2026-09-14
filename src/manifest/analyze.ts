@@ -7,6 +7,8 @@ export async function analyzeManifest(manifestPath: string, bundleRoot?: string)
   const pkg = JSON.parse(raw);
 
   const findings: Finding[] = [];
+  // Store portable relative paths so diff keys are stable across tmp-dir scans.
+  const relManifest = bundleRoot ? path.relative(bundleRoot, manifestPath).split(path.sep).join('/') : manifestPath;
 
   const activationEvents: string[] = Array.isArray(pkg.activationEvents) ? pkg.activationEvents : [];
   if (activationEvents.includes('*')) {
@@ -16,7 +18,7 @@ export async function analyzeManifest(manifestPath: string, bundleRoot?: string)
       message: 'activationEvents contains "*", activates on startup',
       legitimateUse: 'Common for extensions that need early startup',
       redFlag: 'Broad activation increases attack surface',
-      location: { file: manifestPath }
+      location: { file: relManifest }
     });
   }
 
@@ -36,7 +38,7 @@ export async function analyzeManifest(manifestPath: string, bundleRoot?: string)
         severity: 'info',
         message: `Declared ${declaredSettings.length} configuration settings`,
         legitimateUse: 'Extensions expose settings to configure behavior',
-        location: { file: manifestPath }
+        location: { file: relManifest }
       });
     }
   }
@@ -53,7 +55,7 @@ export async function analyzeManifest(manifestPath: string, bundleRoot?: string)
         message: `Declares capabilities.untrustedWorkspaces = ${String(v)}`,
         legitimateUse: 'Some extensions need limited workspace access',
         redFlag: 'Claim should be verified against runtime sinks',
-        location: { file: manifestPath }
+        location: { file: relManifest }
       });
     }
   }
@@ -66,7 +68,7 @@ export async function analyzeManifest(manifestPath: string, bundleRoot?: string)
       message: `Declares ${extensionDependencies.length} extensionDependencies`,
       legitimateUse: 'Extensions can depend on other extensions for shared functionality',
       redFlag: 'Dependency may share execution context',
-      location: { file: manifestPath }
+      location: { file: relManifest }
     });
   }
 
@@ -83,7 +85,7 @@ export async function analyzeManifest(manifestPath: string, bundleRoot?: string)
         message: 'No package-lock.json or yarn.lock included in the bundle',
         legitimateUse: 'Some authors omit lockfiles intentionally',
         redFlag: 'Blocks reliable transitive dependency analysis',
-        location: { file: manifestPath }
+        location: { file: relManifest }
       });
     }
   }

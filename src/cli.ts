@@ -39,6 +39,7 @@ export async function performScan(pathArg: string, opts: { strict?: boolean, osv
   const res = await unpackVsix(pathArg);
   try {
   if (!res.manifestPath) {
+    try { res.cleanup(); } catch { /* ignore */ }
     console.error('Manifest not found in vsix');
     return 1;
   }
@@ -88,10 +89,15 @@ export async function performScan(pathArg: string, opts: { strict?: boolean, osv
       const signatureFindings = await scanSignatures(res.extractedPath);
 
       // dependency analysis if lockfile present
-      const lock1 = path.join(res.extractedPath, 'package-lock.json');
-      const lock2 = path.join(res.extractedPath, 'yarn.lock');
+      const lockNpm = path.join(res.extractedPath, 'package-lock.json');
+      const lockYarn = path.join(res.extractedPath, 'yarn.lock');
+      const lockPnpm = path.join(res.extractedPath, 'pnpm-lock.yaml');
+      // also check extension/ subdir (real .vsix layout: extension/package.json)
+      const lockNpmExt = path.join(res.extractedPath, 'extension', 'package-lock.json');
+      const lockYarnExt = path.join(res.extractedPath, 'extension', 'yarn.lock');
+      const lockPnpmExt = path.join(res.extractedPath, 'extension', 'pnpm-lock.yaml');
       let dependencyFindings: any[] = [];
-      const lockfilePath = fs.existsSync(lock1) ? lock1 : (fs.existsSync(lock2) ? lock2 : undefined);
+      const lockfilePath = [lockNpm, lockNpmExt, lockYarn, lockYarnExt, lockPnpm, lockPnpmExt].find(p => fs.existsSync(p));
       if (lockfilePath) {
         const topPackagesPath = path.join(process.cwd(), 'test', 'fixtures', 'top_packages.json');
         // provide an OSV lookup implementation
@@ -108,7 +114,7 @@ export async function performScan(pathArg: string, opts: { strict?: boolean, osv
             return { advisories: [] };
           }
         };
-        dependencyFindings = await analyzeDependencies(lockfilePath, { osvLookup, topPackagesPath: fs.existsSync(topPackagesPath) ? topPackagesPath : undefined });
+        dependencyFindings = await analyzeDependencies(lockfilePath, { osvLookup, topPackagesPath: fs.existsSync(topPackagesPath) ? topPackagesPath : undefined, bundleRoot: res.extractedPath });
       }
 
       clearInterval(anim);
@@ -127,11 +133,12 @@ export async function performScan(pathArg: string, opts: { strict?: boolean, osv
         ...dependencyFindings
       ];
 
-      // diff against last scan
+      // diff against last scan (bundleRoot passed so tmp-dir paths get stable keys)
       const publisher = manifest.publisher || 'unknown';
       const extName = manifest.extensionName || 'unknown';
       const last = await getLastScan(publisher, extName);
-      const diffed = diffFindings(last?.findings, allFindings);
+      const relManifestFile = path.relative(res.extractedPath, res.manifestPath).split(path.sep).join('/');
+      const diffed = diffFindings(last?.findings, allFindings, res.extractedPath);
 
       // detect newly introduced network destinations and elevate
       const addedNetworkHosts = new Set<string>();
@@ -147,14 +154,13 @@ export async function performScan(pathArg: string, opts: { strict?: boolean, osv
           severity: 'high',
           message: `New outbound destination introduced: ${u}`,
           redFlag: 'New remote destination introduced in this version',
-          location: { file: res.manifestPath },
+          location: { file: relManifestFile },
           newInThisVersion: true
         });
       }
 
-      const scoring = scoreFindings(diffed, { strict: !!opts.strict });
-
       // cross-check: untrustedWorkspaces capability vs actual sinks
+      // NOTE: must run BEFORE scoring so the synthesized finding affects verdict.
       try {
         const hasUntrusted = !!manifest.untrustedWorkspacesClaim;
         const hasShellOrWrite = diffed.some((f:any)=> ['static.source_to_shell','static.read_to_write','static.source_to_eval'].includes(f.rule));
@@ -164,11 +170,13 @@ export async function performScan(pathArg: string, opts: { strict?: boolean, osv
             severity: 'high',
             message: 'Declares untrustedWorkspaces while containing shell/file-write/eval sinks',
             redFlag: 'Contradiction between claimed untrusted workspace support and risky behaviors',
-            location: { file: res.manifestPath },
+            location: { file: relManifestFile },
             newInThisVersion: true
           });
         }
       } catch (e) { /* ignore */ }
+
+      const scoring = scoreFindings(diffed, { strict: !!opts.strict });
 
       // enrich findings with explanations
       for (const f of diffed) {
@@ -224,10 +232,12 @@ export async function performScan(pathArg: string, opts: { strict?: boolean, osv
       }
 
       const code = scoring.status === 'PASS' ? 0 : (scoring.status === 'WARN' ? 1 : 2);
+      try { res.cleanup(); } catch { /* ignore */ }
       if (!opts.interactive) process.exit(code);
       return code;
     } catch (e: any) {
       console.error('Error:', e.message || e);
+      try { res.cleanup(); } catch { /* ignore */ }
       if (!opts.interactive) process.exit(2);
       return 2;
     }

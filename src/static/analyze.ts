@@ -18,6 +18,7 @@ function readText(file: string) {
 
 export async function analyzeStatic(bundleRoot: string): Promise<Finding[]> {
   const findings: Finding[] = [];
+  const rel = (f: string) => path.relative(bundleRoot, f).split(path.sep).join('/');
   const files = walkDir(bundleRoot).filter(f => f.endsWith('.js') || f.endsWith('.ts'));
 
   for (const file of files) {
@@ -44,10 +45,10 @@ export async function analyzeStatic(bundleRoot: string): Promise<Finding[]> {
       findings.push({
         rule: 'static.source_to_shell',
         severity: sev,
-        message: `Possible tainted data flowing to shell in ${path.relative(process.cwd(), file)}`,
+        message: `Possible tainted data flowing to shell in ${rel(file)}`,
         legitimateUse: 'Extensions sometimes invoke external tools configured by users',
         redFlag: hasAllowlist ? 'Uses untrusted input sources with shell execution in same file' : 'No validation/allowlist detected for shell arguments',
-        location: { file }
+        location: { file: rel(file) }
       });
     }
 
@@ -70,10 +71,10 @@ export async function analyzeStatic(bundleRoot: string): Promise<Finding[]> {
       findings.push({
         rule: 'static.source_to_eval',
         severity: sev,
-        message: `Possible tainted data used in eval() in ${path.relative(process.cwd(), file)}`,
+        message: `Possible tainted data used in eval() in ${rel(file)}`,
         legitimateUse: 'Some extensions parse dynamic code or evaluate JSON-like strings',
         redFlag: mitigated ? 'eval() wraps JSON.parse or bracketed expression' : 'eval() of untrusted data can lead to code injection',
-        location: { file }
+        location: { file: rel(file) }
       });
     }
 
@@ -86,10 +87,10 @@ export async function analyzeStatic(bundleRoot: string): Promise<Finding[]> {
       findings.push({
         rule: 'static.read_to_write',
         severity: sev,
-        message: `File read data may be written back in ${path.relative(process.cwd(), file)}`,
+        message: `File read data may be written back in ${rel(file)}`,
         legitimateUse: 'Extensions transform workspace files',
         redFlag: sensitiveTarget ? 'Writes to potentially sensitive startup/executable locations detected' : 'Writing paths/content derived from external input increases risk',
-        location: { file }
+        location: { file: rel(file) }
       });
     }
 
@@ -102,10 +103,10 @@ export async function analyzeStatic(bundleRoot: string): Promise<Finding[]> {
         findings.push({
           rule: 'network.destination',
           severity: isInsecure ? 'medium' : 'low',
-          message: `Outbound network destination ${u} referenced in ${path.relative(process.cwd(), file)}`,
+          message: `Outbound network destination ${u} referenced in ${rel(file)}`,
           legitimateUse: 'Extensions may contact remote services',
           redFlag: isInsecure ? 'Uses unencrypted http' : undefined,
-          location: { file }
+          location: { file: rel(file) }
         });
       } catch (e) { /* ignore invalid URLs */ }
     }

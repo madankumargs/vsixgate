@@ -15,4 +15,14 @@ describe('static analyzer (heuristic)', () => {
     const findings = await analyzeStatic(root);
     expect(findings.length).toBe(0);
   });
+
+  it('stores bundle-relative paths (stable across tmp dirs)', async () => {
+    const root = path.join(__dirname, 'fixtures', 'static_vuln');
+    const findings = await analyzeStatic(root);
+    expect(findings.length).toBeGreaterThan(0);
+    for (const f of findings) {
+      expect(f.location?.file).not.toMatch(/^[A-Za-z]:\\/);
+      expect(f.location?.file).not.toContain(String(__dirname));
+    }
+  });
 });

@@ -76,11 +76,35 @@ export async function getLastScan(publisher: string, extensionName: string): Pro
   return null;
 }
 
-export function diffFindings(previous: Finding[] | undefined, current: Finding[]) {
-  const prevSet = new Set((previous || []).map(p => `${p.rule}|${p.location?.file}|${p.location?.line || ''}|${p.message || ''}`));
+export function diffFindings(previous: Finding[] | undefined, current: Finding[], bundleRoot?: string) {
+  const toPosix = (f: string) => f.split(path.sep).join('/').replace(/\\/g, '/');
+  const normalize = (f: string | undefined) => {
+    if (!f) return '';
+    let u = toPosix(f).replace(/^[\\/]+/, '');
+    // 1. Strip the current bundle root prefix (handles fresh absolute paths).
+    if (bundleRoot) {
+      const rootU = toPosix(bundleRoot).replace(/^[\\/]+/, '').replace(/\/$/, '');
+      if (u === rootU) return '';
+      if (u.startsWith(rootU + '/')) return u.slice(rootU.length + 1);
+    }
+    // 2. Generic tmp-dir stripping: any prior scan's absolute path like
+    //    `.../vsixgate-abc123/extension/index.js` reduces to `extension/index.js`.
+    //    This keeps diff stable even against baselines stored before the
+    //    relative-path fix, and across different tmp dirs.
+    const extIdx = u.lastIndexOf('/extension/');
+    if (extIdx >= 0) return u.slice(extIdx + 1);
+    // Windows drive letter or leading tmp volunteered absolute path without
+    // an extension/ marker: fall back to last 2 segments to avoid collisions.
+    if (/^[A-Za-z]:\//.test(u) || u.includes('/tmp/') || u.includes('vsixgate-')) {
+      const parts = u.split('/');
+      return parts.slice(-2).join('/');
+    }
+    return u;
+  };
+  const makeKey = (p: Finding) => `${p.rule}|${normalize(p.location?.file)}|${p.location?.line || ''}|${p.message || ''}`;
+  const prevSet = new Set((previous || []).map(makeKey));
   for (const f of current) {
-    const key = `${f.rule}|${f.location?.file}|${f.location?.line || ''}|${f.message || ''}`;
-    if (!prevSet.has(key)) f.newInThisVersion = true;
+    if (!prevSet.has(makeKey(f))) f.newInThisVersion = true;
     else f.newInThisVersion = false;
   }
   return current;

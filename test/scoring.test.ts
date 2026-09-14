@@ -40,4 +40,16 @@ describe('scoring engine', () => {
     const r = scoreFindings(f);
     expect(r.status).toBe('PASS');
   });
+
+  it('untrusted_and_sinks HIGH counts toward verdict when scored with the rest', () => {
+    // Regression: cli.ts used to call scoreFindings() BEFORE pushing this
+    // finding, so a HIGH that should BLOCK was invisible to scoring.
+    // Order enforced in cli.ts: synth -> score. This test pins the scoring half.
+    const f: Finding[] = [
+      { rule: 'static.source_to_shell', severity: 'critical', message: 'shell', newInThisVersion: false },
+      { rule: 'manifest.untrusted_and_sinks', severity: 'high', message: 'Declares untrustedWorkspaces while containing shell/file-write/eval sinks', newInThisVersion: true }
+    ];
+    const r = scoreFindings(f);
+    expect(r.status).toBe('BLOCK');
+  });
 });

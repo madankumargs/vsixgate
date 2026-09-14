@@ -24,4 +24,13 @@ describe('signatures scanner (heuristic)', () => {
     expect(f).toBeDefined();
     expect(f?.severity).toBe('medium');
   });
+
+  it('stores bundle-relative paths (stable across tmp dirs)', async () => {
+    const root = path.join(__dirname, 'fixtures', 'signature_png_disguised');
+    const findings = await scanSignatures(root);
+    expect(findings.length).toBeGreaterThan(0);
+    for (const f of findings) {
+      expect(f.location?.file).not.toMatch(/^[A-Za-z]:\\/);
+    }
+  });
 });
