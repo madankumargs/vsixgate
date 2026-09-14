@@ -43,6 +43,34 @@ export const FINDING_EXPLANATIONS: Record<string, { explanation: string; recomme
     explanation: 'The extension declares extensionDependencies which may pull in third-party code with different trust characteristics.',
     recommendation: 'Review dependent extensions and their permissions; prefer minimal dependency surface and document why dependencies are required.'
   },
+  'manifest.risky_install_script': {
+    explanation: 'A preinstall/install/postinstall script runs automatically when the package installs, with the installing user\u2019s privileges.',
+    recommendation: 'Remove install hooks where possible; if native builds need them, pin the toolchain, verify checksums, and avoid network fetches.'
+  },
+  'manifest.suspicious_script': {
+    explanation: 'A package script downloads remote content or evaluates code (curl, powershell, node -e, base64 decode).',
+    recommendation: 'Vendor the dependency or verify integrity (hash/signature); never pipe remote content straight into a shell.'
+  },
+  'manifest.missing_engines': {
+    explanation: 'No engines.vscode constraint is declared, so the extension may run on untested engine versions.',
+    recommendation: 'Declare a minimum engines.vscode of ^1.70.0 or later to guarantee workspace-trust protections.'
+  },
+  'manifest.unbounded_engine': {
+    explanation: 'The engines.vscode range has no meaningful lower bound, so very old VS Code versions are allowed.',
+    recommendation: 'Set a concrete lower bound (e.g. ^1.85.0) and test against it.'
+  },
+  'manifest.outdated_engine': {
+    explanation: 'The declared engine range permits VS Code versions before workspace trust (1.70).',
+    recommendation: 'Raise the minimum to ^1.70.0 or gate privileged behavior behind a workspace-trust check.'
+  },
+  'secret.embedded_key': {
+    explanation: 'A shipped token, private key, or high-entropy string looks like a live credential baked into the bundle.',
+    recommendation: 'Revoke the credential, move it to user settings or a secret store, and scan git history for leaks.'
+  },
+  'native.binary_present': {
+    explanation: 'A prebuilt .node binary or native build marker ships with the extension; compiled code is opaque to static analysis.',
+    recommendation: 'Publish build provenance (source, toolchain, reproducible build) and review what the native code can access.'
+  },
   'static.outbound_url': {
     explanation: 'The source contains hard-coded or constructed URLs the extension may contact at runtime.',
     recommendation: 'Prefer configuration for endpoints, validate and document any telemetry or network usage, and avoid embedding secret tokens in URLs.'
